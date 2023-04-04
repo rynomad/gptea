@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "permissions": [
+    "tabs",
+    "windows",
+    "system.display",
+    "webNavigation",
+    "tabGroups"
+  ]
+}

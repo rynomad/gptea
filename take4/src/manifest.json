@@ -1,0 +1,8 @@
+{
+  "manifest_version": 3,
+  "name": "Goodloops",
+  "version": "1.0.0",
+  "background": {
+    "service_worker": "background.bundle.js"
+  }
+}

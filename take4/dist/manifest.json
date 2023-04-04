@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "Goodloops",
+  "version": "1.0.0",
+  "background": {
+    "service_worker": "background.bundle.js"
+  },
+  "permissions": [
+    "tabs",
+    "windows",
+    "system.display",
+    "webNavigation",
+    "tabGroups",
+    "tabs",
+    "extension",
+    "debugger"
+  ],
+  "action": {
+    "default_popup": "pages/popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://meet.jit.si/*"
+      ],
+      "js": [
+        "scripts/jitsi_hide_screenshare.bundle.js"
+      ]
+    },
+    {
+      "matches": [
+        "https://chat.openai.com/*"
+      ],
+      "js": [
+        "scripts/mermaid.bundle.js"
+      ]
+    },
+    {
+      "matches": [
+        "https://chat.openai.com/*"
+      ],
+      "js": [
+        "scripts/searchGPT.bundle.js"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}

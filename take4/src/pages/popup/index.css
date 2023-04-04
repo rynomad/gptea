@@ -1,0 +1,23 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 16px;
+}
+
+.page-list {
+    list-style-type: none;
+    padding: 0;
+}
+
+.page-list-item {
+    margin-bottom: 8px;
+}
+
+.page-list-item a {
+    color: #1a0dab;
+    text-decoration: none;
+}
+
+.page-list-item a:hover {
+    text-decoration: underline;
+}

@@ -1,0 +1,10 @@
+{
+  "content_scripts": [
+    {
+      "matches": ["https://chat.openai.com/*"],
+      "js": ["scripts/searchGPT.bundle.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "permissions": ["debugger"]
+}

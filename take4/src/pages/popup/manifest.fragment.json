@@ -1,0 +1,6 @@
+{
+  "action": {
+    "default_popup": "pages/popup.html"
+  },
+  "permissions": ["tabs", "extension"]
+}
