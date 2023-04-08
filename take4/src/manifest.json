@@ -4,5 +4,13 @@
   "version": "1.0.0",
   "background": {
     "service_worker": "background.bundle.js"
-  }
+  },
+  "permissions": [
+    "tabs",
+    "<all_urls>",
+    "webNavigation",
+    "activeTab",
+    "scripting",
+    "system.display"
+  ]
 }

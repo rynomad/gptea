@@ -85459,20 +85459,39 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var mermaid__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! mermaid */ "./node_modules/mermaid/dist/mermaid-ae477ddf.js");
 
 const codeBlocks = new Map();
-let documentObserver;
 function createMermaidContainer() {
     const container = document.createElement("div");
     container.classList.add("mermaid-container");
+    container.setAttribute("style", "background-color: #e0f0ff; border-radius: 8px; padding: 10px; cursor: pointer;");
+    container.onclick = () => showModal(container.innerHTML);
     return container;
+}
+function showModal(svgCode) {
+    const modal = document.createElement("div");
+    modal.classList.add("mermaid-modal");
+    modal.setAttribute("style", "position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 9999; background-color: rgba(0, 0, 0, 0.7); display: flex; justify-content: center; align-items: center;");
+    modal.onclick = () => closeModal(modal);
+    const modalContent = document.createElement("div");
+    modalContent.setAttribute("style", "background-color: white; width: 80%; height: 80%; border-radius: 8px; overflow: auto; position: relative;");
+    modalContent.innerHTML = svgCode;
+    const closeButton = document.createElement("button");
+    closeButton.innerHTML = "&times;";
+    closeButton.setAttribute("style", "position: absolute; right: 10px; top: 10px; border: none; background: none; font-size: 24px; font-weight: bold; cursor: pointer;");
+    closeButton.onclick = (e) => {
+        e.stopPropagation();
+        closeModal(modal);
+    };
+    modalContent.appendChild(closeButton);
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+}
+function closeModal(modal) {
+    document.body.removeChild(modal);
 }
 function renderMermaid(container, mermaidCode) {
     try {
-        // Temporarily disconnect the document observer to prevent infinite loops
-        documentObserver.disconnect();
         mermaid__WEBPACK_IMPORTED_MODULE_0__.o.render(randomSelector(10), mermaidCode, (svgCode) => {
             container.innerHTML = svgCode;
-            // Reconnect the document observer
-            observeDocument();
         });
     }
     catch (e) {
@@ -85490,64 +85509,49 @@ function isMermaidGraph(codeElement) {
         "gitGraph",
         "flowchart",
     ];
-    const codeContent = codeElement.textContent.trim();
+    const codeContent = codeElement.textContent?.trim() || "";
     const firstLine = codeContent.split("\n")[0].trim();
     return mermaidGraphTypes.some((type) => firstLine.startsWith(type));
 }
-function observeCodeBlock(codeBlock) {
-    const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-            if (mutation.type === "characterData") {
-                const currentText = codeBlock.textContent || "";
-                const container = codeBlocks.get(codeBlock);
-                if (container) {
-                    renderMermaid(container, currentText);
-                }
-            }
-        });
+function observeCodeBlock(codeElement) {
+    const observer = new MutationObserver(() => {
+        const container = codeBlocks.get(codeElement);
+        if (container) {
+            renderMermaid(container, codeElement.textContent || "");
+        }
     });
-    observer.observe(codeBlock, { characterData: true, subtree: true });
-    // Initial rendering of the Mermaid graph
-    const currentText = codeBlock.textContent || "";
-    const container = createMermaidContainer();
-    codeBlocks.set(codeBlock, container);
-    codeBlock.insertAdjacentElement("afterend", container);
-    renderMermaid(container, currentText);
+    observer.observe(codeElement, { characterData: true, subtree: true });
+    return observer;
 }
-function processNewNode(node) {
-    if (node.nodeName === "CODE" && isMermaidGraph(node)) {
-        observeCodeBlock(node);
-    }
-    else if (node.nodeType === Node.ELEMENT_NODE) {
-        node.querySelectorAll("code").forEach((codeElement) => {
-            if (isMermaidGraph(codeElement)) {
-                observeCodeBlock(codeElement);
-            }
+function processCodeElement(codeElement) {
+    if (isMermaidGraph(codeElement) && !codeBlocks.has(codeElement)) {
+        const currentText = codeElement.textContent || "";
+        const container = createMermaidContainer();
+        codeBlocks.set(codeElement, container);
+        codeElement.insertAdjacentElement("afterend", container);
+        renderMermaid(container, currentText);
+        const observer = observeCodeBlock(codeElement);
+        codeElement.addEventListener("DOMNodeRemoved", () => {
+            observer.disconnect();
+            codeBlocks.delete(codeElement);
         });
     }
 }
-function observeDocument() {
-    documentObserver = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-            if (mutation.type === "childList") {
-                mutation.addedNodes.forEach((node) => processNewNode(node));
-            }
-        });
+function checkCodeElements() {
+    const codeElements = document.querySelectorAll("code");
+    codeElements.forEach((codeElement) => {
+        processCodeElement(codeElement);
     });
-    documentObserver.observe(document, { childList: true, subtree: true });
+    if ("requestIdleCallback" in window) {
+        window.requestIdleCallback(checkCodeElements);
+    }
+    else {
+        setTimeout(checkCodeElements, 1000);
+    }
 }
-// Wait for the Mermaid library to be loaded
-mermaid__WEBPACK_IMPORTED_MODULE_0__.o.initialize({ startOnLoad: false });
+mermaid__WEBPACK_IMPORTED_MODULE_0__.o.initialize({ theme: "neutral", startOnLoad: false });
 console.log("Mermaid initialized");
-// Initial scan of the DOM
-const codeElements = document.querySelectorAll("code");
-codeElements.forEach((codeElement) => {
-    if (isMermaidGraph(codeElement)) {
-        observeCodeBlock(codeElement);
-    }
-});
-// Observe changes in the DOM and process new code blocks when they are added
-observeDocument();
+checkCodeElements();
 function randomSelector(length) {
     const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     let result = "r";

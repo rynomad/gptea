@@ -2,7 +2,8 @@
   "content_scripts": [
     {
       "matches": ["https://chat.openai.com/*"],
-      "js": ["scripts/mermaid.bundle.js"],
+      "js": ["scripts/ltm.bundle.js"],
+      "all_frames": true,
       "run_at": "document_end"
     }
   ]

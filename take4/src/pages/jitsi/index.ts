@@ -110,7 +110,7 @@ class CoGrouper extends EventEmitter {
       title: this.localUser.displayName,
     });
 
-    const clearTabs = confirm("Do you want to clear all tabs?");
+    const clearTabs = true; //confirm("Do you want to clear all tabs?");
     if (clearTabs) {
       await new Promise((resolve) =>
         chrome.tabs.remove(
@@ -426,6 +426,7 @@ async function init() {
       });
     },
     videoConferenceJoined: (params: any) => {
+      api.executeCommand("setTileView", true);
       client.dispatch({
         type: "jitsi_videoConferenceJoined",
         payload: {

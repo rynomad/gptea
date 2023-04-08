@@ -117,6 +117,11 @@ module.exports = {
         test: /\.css$/,
         use: [MiniCssExtractPlugin.loader, "css-loader"],
       },
+      {
+        test: /\.js$/,
+        use: "webpack-ignore-loader",
+        include: /data:text\/javascript;base64/,
+      },
     ],
   },
   plugins: [

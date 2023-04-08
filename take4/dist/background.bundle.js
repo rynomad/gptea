@@ -86,7 +86,7 @@ class MessageBrokerImpl {
                 connection.port.postMessage({
                     type,
                     payload,
-                    tabId: Number.parseInt(_portId.split("_")[0]),
+                    tabId: Number.parseInt(_senderPortId.split("_")[0]),
                 });
             }
         }
@@ -163,8 +163,55 @@ if (chrome.runtime.id) {
             detachDebugger();
             sendResponse({ tabId: tabId });
         }
+        else if (message.action === "openPopup") {
+            chrome.tabs.get(sender.tab.id, function (tab) {
+                chrome.windows.get(tab.windowId, {}, function (window) {
+                    chrome.windows.getCurrent(function (currentWindow) {
+                        const screenWidth = currentWindow.width;
+                        const screenHeight = currentWindow.height;
+                        const popupWidth = Math.round(tab.width * 0.7);
+                        const popupHeight = Math.round(tab.height * 0.7);
+                        const windowLeft = window.left;
+                        const popupLeft = Math.round(windowLeft + (tab.width - popupWidth) / 2);
+                        const windowTop = window.top;
+                        const popupTop = Math.round(windowTop + (tab.height - popupHeight) / 2);
+                        const popupParams = {
+                            url: message.url,
+                            type: "popup",
+                            width: popupWidth,
+                            height: popupHeight,
+                            left: Math.max(0, Math.min(screenWidth - popupWidth, popupLeft)),
+                            top: Math.max(0, Math.min(screenHeight - popupHeight, popupTop)),
+                        };
+                        chrome.windows.create(popupParams, (popupWindow) => {
+                            // Send the created popup window's tab ID as a response
+                            sendResponse({ tabId: popupWindow.tabs[0].id });
+                        });
+                    });
+                });
+            });
+        }
+        else if (message.action === "closePopup") {
+            chrome.tabs.remove(message.tabId);
+        }
+        else if (message.action === "openTab") {
+            chrome.tabs.create({ url: message.url }, (tab) => {
+                sendResponse({ tabId: tab.id });
+            });
+        }
+        else if (message.action === "closeTab") {
+            chrome.tabs.remove(message.tabId);
+        }
     });
 }
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.url === "about:blank#gptea") {
+        chrome.scripting.executeScript({
+            target: { tabId: tabId },
+            files: ["scripts/gptea.bundle.js"],
+        });
+    }
+});
 
 /******/ })()
 ;

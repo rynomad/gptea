@@ -7,6 +7,12 @@
   },
   "permissions": [
     "tabs",
+    "<all_urls>",
+    "webNavigation",
+    "activeTab",
+    "scripting",
+    "system.display",
+    "tabs",
     "windows",
     "system.display",
     "webNavigation",
@@ -21,11 +27,58 @@
   "content_scripts": [
     {
       "matches": [
+        "https://chat.openai.com/*"
+      ],
+      "js": [
+        "scripts/bookmarklet.bundle.js"
+      ],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
+        "https://github.com/settings/personal-access-tokens/new"
+      ],
+      "js": [
+        "scripts/gisttoken1.bundle.js"
+      ],
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "https://github.com/settings/tokens?type=beta"
+      ],
+      "js": [
+        "scripts/gisttoken2.bundle.js"
+      ],
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "https://chat.openai.com/*"
+      ],
+      "js": [
+        "scripts/gpgist.bundle.js"
+      ],
+      "run_at": "document_end"
+    },
+    {
+      "matches": [
         "https://meet.jit.si/*"
       ],
       "js": [
         "scripts/jitsi_hide_screenshare.bundle.js"
-      ]
+      ],
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "https://chat.openai.com/*"
+      ],
+      "js": [
+        "scripts/ltm.bundle.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_end"
     },
     {
       "matches": [
@@ -33,7 +86,8 @@
       ],
       "js": [
         "scripts/mermaid.bundle.js"
-      ]
+      ],
+      "run_at": "document_end"
     },
     {
       "matches": [

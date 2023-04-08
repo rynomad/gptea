@@ -2,7 +2,7 @@
   "content_scripts": [
     {
       "matches": ["https://chat.openai.com/*"],
-      "js": ["scripts/mermaid.bundle.js"],
+      "js": ["scripts/gpgist.bundle.js"],
       "run_at": "document_end"
     }
   ]

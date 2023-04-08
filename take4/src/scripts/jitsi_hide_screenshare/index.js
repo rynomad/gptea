@@ -19,7 +19,7 @@ const removeLocalScreenshareContainers = (videoContainers) => {
   return videoContainers.filter((container) => {
     const video = container.querySelector("video");
     if (video && video.id === "localScreenshare_container") {
-      container.remove();
+      container.setAttribute("style", "display: none;");
       return false;
     }
     return true;

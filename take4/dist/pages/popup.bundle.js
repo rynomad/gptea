@@ -66,7 +66,7 @@ const app = document.getElementById("app");
 if (app) {
     const list = document.createElement("ul");
     list.className = "page-list";
-    Object.entries({"jitsi":"/pages/jitsi.html","popup":"/pages/popup.html","ping":"/pages/ping.html"}).forEach(([name, pagePath]) => {
+    Object.entries({"gptea":"/pages/gptea.html","jitsi":"/pages/jitsi.html","popup":"/pages/popup.html","ping":"/pages/ping.html"}).forEach(([name, pagePath]) => {
         if (name === "popup") {
             return;
         }
