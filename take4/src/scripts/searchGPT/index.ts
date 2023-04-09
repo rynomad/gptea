@@ -95,7 +95,7 @@ class GPTDatabase {
   async init() {
     const storedVersion = parseInt(localStorage.getItem("db_version") || "1");
     this.DB_VERSION = storedVersion;
-    this.dbPromise = this.openDB(
+    this.dbPromise = this.openDBWithRetries(
       this.DB_NAME,
       this.DB_VERSION,
       (db, oldVersion, newVersion) => {
@@ -117,6 +117,37 @@ class GPTDatabase {
     );
   }
 
+  private async openDBWithRetries(
+    name: string,
+    version: number,
+    upgradeCallback: (
+      db: IDBPDatabase,
+      oldVersion: number,
+      newVersion: number
+    ) => void
+  ): Promise<IDBPDatabase> {
+    try {
+      return await this.openDB(name, version, upgradeCallback);
+    } catch (error) {
+      if (
+        error instanceof DOMException &&
+        error.message.match(
+          /The requested version \(\d+\) is less than the existing version \(\d+\)./
+        )
+      ) {
+        const [, requestedVersion, existingVersion] = error.message.match(
+          /The requested version \((\d+)\) is less than the existing version \((\d+)\)./
+        )!;
+        const newVersion = parseInt(existingVersion);
+        this.DB_VERSION = newVersion;
+        localStorage.setItem("db_version", newVersion.toString());
+        return this.openDBWithRetries(name, newVersion, upgradeCallback);
+      } else {
+        throw error;
+      }
+    }
+  }
+
   async upgradeDB(createStoreName: string) {
     if (this.dbPromise) {
       const db = await this.dbPromise;
@@ -127,7 +158,7 @@ class GPTDatabase {
 
     this.DB_VERSION += 1;
     localStorage.setItem("db_version", this.DB_VERSION.toString());
-    this.dbPromise = this.openDB(
+    this.dbPromise = this.openDBWithRetries(
       this.DB_NAME,
       this.DB_VERSION,
       (db, oldVersion, newVersion) => {
@@ -368,181 +399,11 @@ class GPTDatabase {
   }
 }
 
-function findClosestScrollableParent(element: HTMLElement): HTMLElement | null {
-  let currentElement: HTMLElement | null = element;
-
-  while (currentElement) {
-    const overflowY = window.getComputedStyle(currentElement).overflowY;
-    if (overflowY === "scroll" || overflowY === "auto") {
-      return currentElement;
-    }
-    currentElement = currentElement.parentElement;
-  }
-
-  return null;
-}
-
-function debounce(
-  func: (...args: any[]) => void,
-  wait: number
-): (...args: any[]) => void {
-  let timeout: number | undefined;
-
-  return function (...args: any[]): void {
-    const later = () => {
-      timeout = undefined;
-      func(...args);
-    };
-
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait) as unknown as number;
-  };
-}
-
-interface TooltipWithInfo extends HTMLElement {
-  matchingElement: HTMLElement;
-  updateTooltipPosition: () => void;
-}
-
-function setupSearchBox(gptDatabase: GPTDatabase): void {
-  const searchBox = document.createElement("input");
-  searchBox.type = "text";
-  searchBox.placeholder = "Search...";
-  searchBox.style.position = "fixed";
-  searchBox.style.top = "10px";
-  searchBox.style.right = "10px";
-  searchBox.style.border = "1px solid #ccc";
-  searchBox.style.borderRadius = "3px";
-  searchBox.style.padding = "5px";
-  searchBox.style.fontSize = "14px";
-  searchBox.style.color = "black";
-  setTimeout(() => document.body.appendChild(searchBox), 100);
-
-  let activeTooltips: TooltipWithInfo[] = [];
-
-  function clearTooltips() {
-    for (const tooltip of activeTooltips) {
-      const scrollableParent = findClosestScrollableParent(
-        tooltip.matchingElement
-      );
-      if (scrollableParent) {
-        scrollableParent.removeEventListener(
-          "scroll",
-          tooltip.updateTooltipPosition
-        );
-      }
-      tooltip.remove();
-    }
-    activeTooltips = [];
-  }
-
-  const debouncedSearch = debounce(async (event: Event) => {
-    clearTooltips();
-
-    const searchTerm = (event.target as HTMLInputElement).value;
-
-    if (searchTerm.length < 4) {
-      return;
-    }
-
-    const results = await gptDatabase.search(searchTerm);
-
-    for (const result of results) {
-      const matchingElements = Array.from(
-        document.querySelectorAll("div")
-      ).filter((element) => element.innerText === result.title);
-
-      for (const element of matchingElements) {
-        const tooltip = document.createElement(
-          "div"
-        ) as unknown as TooltipWithInfo;
-        tooltip.matchingElement = element;
-
-        const scrollableParent = findClosestScrollableParent(element);
-        if (scrollableParent) {
-          scrollableParent.addEventListener("scroll", updateTooltipPosition);
-        }
-        function updateTooltipPosition() {
-          const parentRect = scrollableParent!.getBoundingClientRect();
-          const elementRect = element.getBoundingClientRect();
-          tooltip.style.left = `${parentRect.right + 5}px`;
-          tooltip.style.top = `${elementRect.top}px`;
-        }
-
-        tooltip.updateTooltipPosition = updateTooltipPosition;
-
-        tooltip.style.position = "fixed";
-        tooltip.style.zIndex = "10";
-        tooltip.style.backgroundColor = "rgba(0, 0, 0, 0.7)";
-        tooltip.style.color = "white";
-        tooltip.style.borderRadius = "3px";
-        tooltip.style.padding = "5px";
-        tooltip.style.fontSize = "12px";
-        tooltip.style.maxWidth = "500px";
-        tooltip.style.boxShadow = "0 4px 6px rgba(0, 0, 0, 0.1)";
-        // Add a left-pointing nub
-        const nub = document.createElement("div");
-        nub.style.position = "absolute";
-        nub.style.width = "0";
-        nub.style.height = "0";
-        nub.style.borderTop = "6px solid transparent";
-        nub.style.borderBottom = "6px solid transparent";
-        nub.style.borderLeft = "6px solid white";
-        nub.style.top = "10px";
-        nub.style.right = "-6px";
-        tooltip.appendChild(nub);
-
-        // Bring the tooltip to the front when hovered
-        tooltip.addEventListener("mouseenter", () => {
-          tooltip.style.zIndex = "1000";
-        });
-
-        tooltip.addEventListener("mouseleave", () => {
-          tooltip.style.zIndex = "10";
-        });
-
-        tooltip.matchingElement = element;
-        tooltip.updateTooltipPosition = updateTooltipPosition;
-
-        updateTooltipPosition();
-
-        tooltip.innerHTML = Array.from(result.matches)
-          .map((match) => {
-            const firstOccurrenceIndex = match
-              .toLowerCase()
-              .indexOf(searchTerm.toLowerCase());
-            const start = Math.max(0, firstOccurrenceIndex - 25);
-            const end = Math.min(
-              match.length,
-              firstOccurrenceIndex + searchTerm.length + 25
-            );
-            const truncatedMatch = `...${match.slice(start, end)}...`;
-            return truncatedMatch.replace(
-              new RegExp(`(${searchTerm})`, "gi"),
-              '<mark style="background-color: yellow;">$1</mark>'
-            );
-          })
-          .join("<br>");
-
-        const wrapper = document.createElement("div");
-        wrapper.style.position = "relative";
-        wrapper.style.display = "inline-block";
-        element.parentNode!.insertBefore(wrapper, element);
-        wrapper.appendChild(element);
-        wrapper.appendChild(tooltip);
-        activeTooltips.push(tooltip);
-      }
-    }
-  }, 1000);
-
-  searchBox.addEventListener("input", debouncedSearch);
-}
-
 (async () => {
   const client = new BrokerClient();
-  const db = new GPTDatabase();
+  const search = new GPTSearch();
+  const db = search.db;
   // alert("db created");
-  setupSearchBox(db);
   if (window.location.hash === "#scan") {
     client.on("NETWORK_RESPONSE", async ({ payload }: any) => {
       if (payload.url?.includes("backend-api")) {
@@ -589,3 +450,243 @@ function setupSearchBox(gptDatabase: GPTDatabase): void {
     );
   }
 })();
+
+function createSearchResultElement(
+  title: string,
+  previews: string[],
+  searchTerm: string
+): HTMLElement {
+  const resultContainer = document.createElement("a");
+  resultContainer.className =
+    "search-result-item flex py-3 px-3 items-center gap-3 relative rounded-md hover:bg-[#2A2B32] cursor-pointer break-all hover:pr-4 group";
+  resultContainer.style.position = "relative";
+
+  const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  icon.setAttribute("stroke", "currentColor");
+  icon.setAttribute("fill", "none");
+  icon.setAttribute("stroke-width", "2");
+  icon.setAttribute("viewBox", "0 0 24 24");
+  icon.setAttribute("stroke-linecap", "round");
+  icon.setAttribute("stroke-linejoin", "round");
+  icon.setAttribute("class", "h-4 w-4");
+  icon.innerHTML =
+    '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>';
+
+  const titleContainer = document.createElement("div");
+  titleContainer.className =
+    "flex-1 text-ellipsis max-h-5 overflow-hidden break-all relative";
+  titleContainer.textContent = title;
+
+  const fadeEffect = document.createElement("div");
+  fadeEffect.className =
+    "absolute inset-y-0 right-0 w-8 z-10 bg-gradient-to-l from-gray-900 group-hover:from-[#2A2B32]";
+  titleContainer.appendChild(fadeEffect);
+
+  resultContainer.appendChild(icon);
+  resultContainer.appendChild(titleContainer);
+
+  const tooltip = document.createElement("span");
+  tooltip.className =
+    "hidden group-hover:block absolute bg-gray-800 text-white text-sm rounded-md shadow-lg whitespace-pre-wrap border border-gray-700";
+  tooltip.style.zIndex = "10";
+  tooltip.style.position = "fixed";
+  tooltip.style.boxShadow = "0 1px 3px rgba(0, 0, 0, 0.3)";
+  resultContainer.appendChild(tooltip);
+
+  const highlightSearchTerm = (text: string): string => {
+    return text
+      .split(new RegExp(`(${searchTerm})`, "gi"))
+      .map((part, index) => {
+        if (part.toLowerCase() === searchTerm.toLowerCase()) {
+          return `<span style="background-color: #e8e8e8; color: #000; border-radius: 2px;">${part}</span>`;
+        }
+        return part;
+      })
+      .join("");
+  };
+
+  const previewHtml = previews
+    .map((preview) => {
+      const searchTermIndex = preview
+        .toLowerCase()
+        .indexOf(searchTerm.toLowerCase());
+      const previewStart = Math.max(0, searchTermIndex - 40);
+      const previewEnd = Math.min(
+        preview.length,
+        searchTermIndex + searchTerm.length + 40
+      );
+      const previewSnippet =
+        (previewStart > 0 ? "..." : "") +
+        preview.slice(previewStart, previewEnd) +
+        (previewEnd < preview.length ? "..." : "");
+      return highlightSearchTerm(previewSnippet);
+    })
+    .join("<br>");
+
+  tooltip.innerHTML = previewHtml;
+
+  resultContainer.addEventListener("mouseover", (event: MouseEvent) => {
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    tooltip.style.left = `${
+      rect.right + 2 * parseFloat(getComputedStyle(resultContainer).fontSize)
+    }px`;
+    tooltip.style.top = `${rect.top + window.scrollY}px`;
+    tooltip.classList.remove("hidden");
+  });
+
+  resultContainer.addEventListener("mouseout", () => {
+    tooltip.classList.add("hidden");
+  });
+
+  return resultContainer;
+}
+
+function createSearchItem(): HTMLInputElement | undefined {
+  const anchorElements = document.querySelectorAll("a.flex");
+  let newChatElement: HTMLElement | null = null;
+
+  for (const anchor of anchorElements) {
+    if (anchor.textContent && anchor.textContent.includes("New chat")) {
+      newChatElement = anchor as HTMLElement;
+      break;
+    }
+  }
+
+  if (!newChatElement) {
+    console.error("New chat element not found.");
+    return;
+  }
+
+  const searchContainer = document.createElement("div");
+  searchContainer.className =
+    "search-input-container flex py-3 px-3 items-center gap-3 rounded-md hover:bg-gray-500/10 transition-colors duration-200 text-white text-sm mb-2 flex-shrink-0 border border-white/20";
+
+  const searchIcon = document.createElementNS(
+    "http://www.w3.org/2000/svg",
+    "svg"
+  );
+  searchIcon.setAttribute("stroke", "currentColor");
+  searchIcon.setAttribute("fill", "none");
+  searchIcon.setAttribute("stroke-width", "2");
+  searchIcon.setAttribute("viewBox", "0 0 24 24");
+  searchIcon.setAttribute("stroke-linecap", "round");
+  searchIcon.setAttribute("stroke-linejoin", "round");
+  searchIcon.setAttribute("class", "h-4 w-4");
+  searchIcon.innerHTML =
+    '<circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>';
+
+  const searchInput = document.createElement("input");
+  searchInput.setAttribute("type", "text");
+  searchInput.setAttribute("placeholder", "Search Chats...");
+  searchInput.style.border = "none";
+  searchInput.style.backgroundColor = "transparent";
+  searchInput.style.color = "white";
+  searchInput.style.textDecoration = "none";
+  searchInput.style.width = "100%";
+  searchInput.style.padding = "0";
+  searchInput.style.marginBottom = "2px";
+  searchInput.style.borderBottom = "1px solid white";
+  searchInput.style.outline = "none";
+
+  searchInput.addEventListener("focus", () => {
+    searchInput.style.borderBottom = "2px solid rgba(255, 255, 255, 0.8)";
+    searchInput.style.boxShadow = "none";
+  });
+  searchInput.addEventListener("blur", () => {
+    searchInput.style.borderBottom = "1px solid white";
+  });
+
+  searchContainer.appendChild(searchIcon);
+  searchContainer.appendChild(searchInput);
+  newChatElement.parentNode!.prepend(searchContainer);
+
+  return searchInput;
+}
+
+class GPTSearch {
+  private gptDatabase: GPTDatabase;
+  private searchInput: HTMLInputElement | undefined;
+  private searchResultsContainer: HTMLElement | undefined | null;
+
+  constructor() {
+    this.gptDatabase = new GPTDatabase();
+    this.ensureSearchElementInDOM();
+  }
+
+  get db() {
+    return this.gptDatabase;
+  }
+
+  private ensureSearchElementInDOM(): void {
+    const insertSearchElementIfMissing = () => {
+      const searchInputContainer = document.querySelector(
+        ".search-input-container"
+      );
+      if (!searchInputContainer) {
+        this.searchInput = createSearchItem();
+        this.init();
+      }
+    };
+
+    const checkAndInsertSearchElement = () => {
+      requestIdleCallback(() => {
+        insertSearchElementIfMissing();
+        checkAndInsertSearchElement();
+      });
+    };
+
+    checkAndInsertSearchElement();
+  }
+
+  private init(): void {
+    this.searchInput?.addEventListener("input", async (event) => {
+      const searchTerm = (event.target as HTMLInputElement).value;
+      this.clearSearchResults();
+
+      if (searchTerm.length > 4) {
+        console.log("Searching for", searchTerm);
+        const results = await this.gptDatabase.search(searchTerm);
+        this.insertSearchResults(results);
+      }
+    });
+  }
+
+  private clearSearchResults(): void {
+    const searchResultElements = document.querySelectorAll(
+      ".search-result-item"
+    );
+    searchResultElements.forEach((element) => {
+      element.remove();
+    });
+  }
+
+  private insertSearchResults(
+    searchResults: Array<{
+      conversationId: string;
+      matches: Set<string>;
+      title: string;
+    }>
+  ): void {
+    const targetContainer = document.querySelector(
+      ".flex.flex-col.gap-2.text-gray-100.text-sm"
+    );
+    console.log("Target container", targetContainer);
+    if (targetContainer) {
+      for (const result of searchResults.reverse()) {
+        const searchResultElement = createSearchResultElement(
+          result.title,
+          Array.from(result.matches),
+          this.searchInput!.value
+        );
+        searchResultElement.setAttribute(
+          "href",
+          `https://chat.openai.com/chat/${result.conversationId}`
+        );
+        targetContainer.prepend(searchResultElement);
+      }
+    }
+  }
+}
+
+// Initialize the GPTSearch class
+const gptSearch = new GPTSearch();

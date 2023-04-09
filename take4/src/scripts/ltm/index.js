@@ -219,11 +219,12 @@ function processGroups() {
     container.appendChild(tokenCount);
     container.appendChild(starContainer);
     container.appendChild(starButton);
+
     group.appendChild(container);
 
     // Position the container
     container.style.position = "absolute";
-    container.style.bottom = "10px";
+    container.style.top = "5px";
     container.style.left = "50%";
     container.style.transform = "translateX(-50%)";
     container.style.display = "flex";
